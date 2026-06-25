@@ -172,6 +172,10 @@ android {
         testApplicationId 'org.futo.inputmethod.latin.tests'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = false
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
     }
 
     bundle {
@@ -343,7 +347,7 @@ android {
         }
     }
 
-    ndkVersion '28.2.13676358'
+    ndkVersion '27.0.12077973'
     externalNativeBuild {
         cmake {
             path 'native/jni/CMakeLists.txt'
@@ -397,7 +401,7 @@ dependencies {
 
     implementation 'sh.calvin.reorderable:reorderable:3.0.0'
 
-    //implementation 'com.squareup.okhttp3:okhttp:4.11.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.1'
 

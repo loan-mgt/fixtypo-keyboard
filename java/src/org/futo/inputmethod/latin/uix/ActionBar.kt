@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ButtonDefaults
@@ -124,6 +125,7 @@ import org.futo.inputmethod.latin.uix.actions.FavoriteActions
 import org.futo.inputmethod.latin.uix.actions.MoreActionsAction
 import org.futo.inputmethod.latin.uix.actions.PinnedActions
 import org.futo.inputmethod.latin.uix.actions.toActionList
+import org.futo.inputmethod.latin.uix.ai.AICorrectionState
 import org.futo.inputmethod.latin.uix.settings.useDataStore
 import org.futo.inputmethod.latin.uix.settings.useDataStoreValue
 import org.futo.inputmethod.latin.uix.theme.LocalCompatEmojiFamily
@@ -797,6 +799,76 @@ fun RowScope.PinnedActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action
     }
 }
 
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun AICorrectionChip(
+    state: AICorrectionState?,
+    onApply: () -> Unit
+) {
+    if (state == null || state == AICorrectionState.Disabled || state == AICorrectionState.Idle) return
+
+    val context = LocalContext.current
+    val bgCol = LocalKeyboardScheme.current.keyboardContainer
+    val fgCol = LocalKeyboardScheme.current.onKeyboardContainer
+    val accentCol = LocalKeyboardScheme.current.primary
+
+    val (text, onClick) = when (state) {
+        is AICorrectionState.Loading -> Pair(
+            stringResource(R.string.ai_correction_chip_loading), null
+        )
+        is AICorrectionState.Ready -> Pair(
+            stringResource(R.string.ai_correction_chip_ready), onApply
+        )
+        is AICorrectionState.Error -> Pair(
+            stringResource(R.string.ai_correction_chip_error), null
+        )
+        else -> return
+    }
+
+    Box(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (state is AICorrectionState.Ready) accentCol.copy(alpha = 0.2f) else bgCol)
+            .then(
+                if (onClick != null) Modifier.combinedClickable(onClick = onClick) else Modifier
+            )
+            .padding(horizontal = 10.dp),
+        contentAlignment = Center
+    ) {
+        Row(verticalAlignment = CenterVertically) {
+            if (state is AICorrectionState.Loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = fgCol
+                )
+                Spacer(Modifier.width(6.dp))
+            } else if (state is AICorrectionState.Ready) {
+                Icon(
+                    painter = painterResource(id = R.drawable.icon_spellcheck),
+                    contentDescription = null,
+                    tint = accentCol,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                text = text,
+                style = suggestionStylePrimary.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp
+                ).withCustomFont(),
+                color = if (state is AICorrectionState.Ready) accentCol else fgCol
+            )
+        }
+    }
+
+    Spacer(Modifier.width(4.dp))
+}
+
+
 @Composable
 fun ActionSep(isExtra: Boolean = false) {
     if(isExtra && (LocalInspectionMode.current || LocalThemeProvider.current.keyBorders)) return
@@ -825,6 +897,8 @@ fun ActionBar(
     onQuickClipDismiss: () -> Unit = {},
     needToUseExpandableSuggestionUi: Boolean = false,
     loading: Boolean = false,
+    aiCorrectionState: AICorrectionState? = null,
+    onAICorrectionApply: () -> Unit = {},
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -923,6 +997,10 @@ fun ActionBar(
                         }
 
                         if(inlineSuggestions.isEmpty()) {
+                            AICorrectionChip(
+                                state = aiCorrectionState,
+                                onApply = onAICorrectionApply
+                            )
                             PinnedActionItems(onActionActivated, onActionAltActivated)
                         }
                     }

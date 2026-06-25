@@ -388,3 +388,18 @@ val SHOW_EMOJI_SUGGESTIONS = SettingsKey(
     key = booleanPreferencesKey("suggestEmojis"),
     default = true
 )
+
+val AI_CORRECTION_ENABLED = SettingsKey(
+    key = booleanPreferencesKey("aiCorrectionEnabled"),
+    default = false
+)
+
+val AI_CORRECTION_API_KEY = SettingsKey(
+    key = stringPreferencesKey("aiCorrectionApiKey"),
+    default = ""
+)
+
+val AI_CORRECTION_DEBOUNCE_MS = SettingsKey(
+    key = stringPreferencesKey("aiCorrectionDebounceMs"),
+    default = "800"
+)

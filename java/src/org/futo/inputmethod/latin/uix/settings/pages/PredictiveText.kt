@@ -9,6 +9,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import org.futo.inputmethod.latin.R
 import org.futo.inputmethod.latin.settings.Settings
+import org.futo.inputmethod.latin.uix.AI_CORRECTION_ENABLED
 import org.futo.inputmethod.latin.uix.USE_TRANSFORMER_FINETUNING
 import org.futo.inputmethod.latin.uix.settings.NavigationItemStyle
 import org.futo.inputmethod.latin.uix.settings.Tip
@@ -57,6 +58,23 @@ val PredictiveTextMenu = UserSettingsMenu(
         userSettingDecorationOnly { Tip(stringResource(R.string.prediction_settings_transformer_alpha_notice)) }
             .copy(visibilityCheck = visibilityCheckLMEnabled),
         // }
+
+        userSettingToggleDataStore(
+            title = R.string.ai_correction_enable,
+            subtitle = R.string.ai_correction_enable_subtitle,
+            setting = AI_CORRECTION_ENABLED,
+            icon = {
+                Icon(painterResource(id = R.drawable.icon_spellcheck), contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f))
+            }
+        ),
+
+        userSettingNavigationItem(
+            title = R.string.ai_correction_title,
+            style = NavigationItemStyle.HomeSecondary,
+            navigateTo = "aicorrection",
+            icon = R.drawable.icon_spellcheck
+        ),
 
         userSettingNavigationItem(
             title = R.string.edit_personal_dictionary,

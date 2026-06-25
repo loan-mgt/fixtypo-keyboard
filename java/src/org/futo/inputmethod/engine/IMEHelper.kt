@@ -94,6 +94,10 @@ class IMEHelper(
         )
     }
 
+    fun notifyAICorrectionInput() {
+        latinIME.uixManager.onAICorrectionInput()
+    }
+
     fun endInputTransaction(inputTransactionIME: ActionInputTransactionIME) {
         latinIME.imeManager.endInputTransaction(inputTransactionIME)
     }

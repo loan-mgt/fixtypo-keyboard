@@ -102,6 +102,8 @@ import androidx.window.layout.WindowInfoTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.futo.inputmethod.latin.uix.ai.AICorrectionEngine
+import org.futo.inputmethod.latin.uix.ai.AICorrectionState
 import org.futo.inputmethod.accessibility.AccessibilityUtils
 import org.futo.inputmethod.engine.ExpandableSuggestionBarConfiguration
 import org.futo.inputmethod.engine.IMEInterface
@@ -599,6 +601,9 @@ class UixManager(private val latinIME: LatinIME) {
     var currWindowAction: MutableState<Action?> = mutableStateOf(null)
     private var persistentStates: HashMap<Action, PersistentActionState?> = hashMapOf()
 
+    private var aiCorrectionEngine: AICorrectionEngine? = null
+    val aiCorrectionState: MutableState<AICorrectionState?> = mutableStateOf(null)
+
     private var inlineSuggestions: MutableState<List<MutableState<View?>>> = mutableStateOf(emptyList())
     private val keyboardManagerForAction = UixActionKeyboardManager(this, latinIME)
 
@@ -737,7 +742,9 @@ class UixManager(private val latinIME: LatinIME) {
                     },
                     onQuickClipDismiss = { quickClipState.value = null },
                     needToUseExpandableSuggestionUi = needToUseExpandableSuggestionUi,
-                    loading = latinIME.imeManager.isImeLoading()
+                    loading = latinIME.imeManager.isImeLoading(),
+                    aiCorrectionState = aiCorrectionState.value,
+                    onAICorrectionApply = { onAICorrectionApply() }
                 )
             }
         }
@@ -1540,7 +1547,69 @@ class UixManager(private val latinIME: LatinIME) {
         }
     }
 
+    fun onAICorrectionInput() {
+        aiCorrectionEngine?.onInputChanged()
+    }
+
+    fun onAICorrectionApply() {
+        val state = aiCorrectionState.value ?: return
+        if (state !is AICorrectionState.Ready) return
+
+        val ic = latinIME.currentInputConnection ?: return
+
+        val textBefore = ic.getTextBeforeCursor(state.originalText.length, 0) ?: ""
+        val textAfter = ic.getTextAfterCursor(state.originalText.length, 0) ?: ""
+
+        val totalOriginal = buildString {
+            append(textBefore)
+            append(textAfter)
+        }
+
+        if (totalOriginal.length > 0) {
+            ic.finishComposingText()
+            ic.beginBatchEdit()
+            try {
+                ic.deleteSurroundingText(textBefore.length, textAfter.length)
+                ic.commitText(state.correctedText, 1)
+            } finally {
+                ic.endBatchEdit()
+            }
+        }
+
+        aiCorrectionEngine?.reset()
+        aiCorrectionState.value = AICorrectionState.Idle
+    }
+
+    private fun createAICorrectionEngine() {
+        aiCorrectionEngine?.onDestroy()
+        aiCorrectionEngine = AICorrectionEngine(
+            scope = latinIME.lifecycleScope,
+            getApiKey = { latinIME.getSettingBlocking(AI_CORRECTION_API_KEY) },
+            isEnabled = { latinIME.getSettingBlocking(AI_CORRECTION_ENABLED) },
+            getDebounceMs = {
+                latinIME.getSettingBlocking(AI_CORRECTION_DEBOUNCE_MS).toLongOrNull() ?: 800L
+            },
+            getTextContext = {
+                val ic = latinIME.currentInputConnection
+                if (ic != null) {
+                    val textBefore = (ic.getTextBeforeCursor(500, 0) ?: "").toString()
+                    val textAfter = (ic.getTextAfterCursor(100, 0) ?: "").toString()
+                    Pair(textBefore, textAfter)
+                } else {
+                    Pair("", "")
+                }
+            }
+        )
+
+        latinIME.lifecycleScope.launch {
+            aiCorrectionEngine?.state?.collect { newState ->
+                aiCorrectionState.value = newState
+            }
+        }
+    }
+
     fun onCreate() {
+        createAICorrectionEngine()
         initKeyboardLoadActions()
 
         isActionsExpanded.value = latinIME.getSettingBlocking(ActionBarExpanded)
@@ -1679,6 +1748,8 @@ class UixManager(private val latinIME: LatinIME) {
     }
 
     fun onDestroy() {
+        aiCorrectionEngine?.onDestroy()
+        aiCorrectionEngine = null
         closeActionWindow()
         persistentStates.values.filterNotNull().forEach {
             it.close()

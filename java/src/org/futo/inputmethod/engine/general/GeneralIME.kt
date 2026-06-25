@@ -394,6 +394,10 @@ class GeneralIME(val helper: IMEHelper) : IMEInterface, WordLearner, SuggestionS
 
             updateSuggestions(inputStyle)
         }
+
+        if (inputTransaction?.didAffectContents() == true && !ignoreSuggestionUpdate) {
+            helper.notifyAICorrectionInput()
+        }
     }
 
     override fun onEvent(event: Event) = onEventInternal(event)

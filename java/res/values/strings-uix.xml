@@ -604,6 +604,20 @@
     <string name="prediction_settings_word_blacklist_edit_blacklisted_words_subtitle">Click here to view the list of blacklisted suggestions, add or remove entries</string>
     <string name="prediction_settings_word_blacklist_remove_word_from_blacklist">Remove word</string>
 
+    <string name="ai_correction_title">AI Text Correction</string>
+    <string name="ai_correction_summary">Use DeepSeek AI to correct grammar, spelling, and punctuation in your text</string>
+    <string name="ai_correction_enable">Enable AI Correction</string>
+    <string name="ai_correction_enable_subtitle">Queries are sent to DeepSeek API for processing</string>
+    <string name="ai_correction_api_key">DeepSeek API Key</string>
+    <string name="ai_correction_api_key_subtitle">Get your API key at platform.deepseek.com</string>
+    <string name="ai_correction_api_key_placeholder">sk-...</string>
+    <string name="ai_correction_chip_idle">AI Correct</string>
+    <string name="ai_correction_chip_loading">AI thinking...</string>
+    <string name="ai_correction_chip_ready">Apply AI fix</string>
+    <string name="ai_correction_chip_error">AI error</string>
+    <string name="ai_correction_no_result">No AI correction available yet</string>
+    <string name="ai_correction_applied">AI correction applied</string>
+
 
     <!-- Help & feedback menu -->
     <string name="help_menu_title">Help &amp; Feedback</string>

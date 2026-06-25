@@ -21,6 +21,7 @@ import org.futo.inputmethod.latin.uix.LocalNavController
 import org.futo.inputmethod.latin.uix.SettingsExporter.ExportingMenu
 import org.futo.inputmethod.latin.uix.actions.AllActions
 import org.futo.inputmethod.latin.uix.settings.pages.ActionEditorScreen
+import org.futo.inputmethod.latin.uix.settings.pages.AICorrectionSettingsMenu
 import org.futo.inputmethod.latin.uix.settings.pages.ActionsScreen
 import org.futo.inputmethod.latin.uix.settings.pages.AdvancedParametersScreen
 import org.futo.inputmethod.latin.uix.settings.pages.AlreadyPaidDialog
@@ -101,6 +102,7 @@ val SettingsMenus = listOf(
     LongPressMenu,
     SwipeMenu,
     PredictiveTextMenu,
+    AICorrectionSettingsMenu,
     BlacklistScreenLite,
     VoiceInputMenu,
     ActionsScreen,
