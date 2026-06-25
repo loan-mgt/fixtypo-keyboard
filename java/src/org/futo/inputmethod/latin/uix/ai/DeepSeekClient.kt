@@ -1,14 +1,20 @@
 package org.futo.inputmethod.latin.uix.ai
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 @Serializable
 data class DeepSeekMessage(
@@ -22,8 +28,14 @@ data class DeepSeekRequest(
     val messages: List<DeepSeekMessage>,
     val temperature: Double = 0.0,
     val max_tokens: Int = 1024,
-    val stream: Boolean = false,
-    val response_format: DeepSeekResponseFormat? = null
+    val stream: Boolean = true,
+    val response_format: DeepSeekResponseFormat? = null,
+    val thinking: DeepSeekThinking? = null
+)
+
+@Serializable
+data class DeepSeekThinking(
+    val type: String
 )
 
 @Serializable
@@ -68,6 +80,22 @@ data class AIJsonOutput(
     val corrected_text: String = ""
 )
 
+@Serializable
+data class DeepSeekStreamDelta(
+    val content: String? = null
+)
+
+@Serializable
+data class DeepSeekStreamChoice(
+    val delta: DeepSeekStreamDelta? = null,
+    val finish_reason: String? = null
+)
+
+@Serializable
+data class DeepSeekStreamChunk(
+    val choices: List<DeepSeekStreamChoice>? = null
+)
+
 private val SYSTEM_PROMPT = """
 You are a text correction tool. The user will provide text that may contain typos or grammar errors. Return ONLY a JSON object with the corrected text. Do NOT explain the changes. The output must be exactly: {"corrected_text": "the corrected text here"}
 
@@ -101,7 +129,7 @@ class DeepSeekClient(
                 ),
                 temperature = 0.0,
                 max_tokens = 1024,
-                response_format = DeepSeekResponseFormat(type = "json_object")
+                thinking = DeepSeekThinking(type = "disabled")
             )
 
             val requestBody = json.encodeToString(DeepSeekRequest.serializer(), request)
@@ -114,46 +142,123 @@ class DeepSeekClient(
                 .addHeader("Content-Type", "application/json")
                 .build()
 
-            val response = client.newCall(httpRequest).execute()
+            suspendCancellableCoroutine { continuation ->
+                val call = client.newCall(httpRequest)
 
-            val responseBody = response.body?.string() ?: ""
-            if (!response.isSuccessful) {
-                val errorResponse = try {
-                    json.decodeFromString(DeepSeekErrorResponse.serializer(), responseBody)
-                } catch (_: Exception) {
-                    null
+                continuation.invokeOnCancellation {
+                    call.cancel()
                 }
-                val errorMsg = errorResponse?.error?.message ?: "HTTP ${response.code}"
-                return@withContext Result.failure(Exception("DeepSeek API error: $errorMsg"))
+
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (continuation.isActive) {
+                            continuation.resumeWithException(e)
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: okhttp3.Response) {
+                        try {
+                            response.use { resp ->
+                                if (!resp.isSuccessful) {
+                                    val body = resp.body?.string() ?: ""
+                                    if (continuation.isActive) {
+                                        continuation.resume(Result.failure(Exception("DeepSeek API error: HTTP ${resp.code} $body")))
+                                    }
+                                    return
+                                }
+
+                                val contentType = resp.header("content-type") ?: ""
+                                val bodyString = resp.body?.string() ?: ""
+
+                                if (!continuation.isActive) return
+
+                                val fullContent = if (contentType?.contains("stream") == true || bodyString.startsWith("data: ")) {
+                                    parseStreamResponse(bodyString)
+                                } else {
+                                    parseJsonResponse(bodyString)
+                                }
+
+                                if (fullContent == null) {
+                                    if (continuation.isActive) {
+                                        continuation.resume(Result.failure(Exception("Empty stream response")))
+                                    }
+                                    return
+                                }
+
+                                if (fullContent.isBlank()) {
+                                    if (continuation.isActive) {
+                                        continuation.resume(Result.failure(Exception("Empty correction output")))
+                                    }
+                                    return
+                                }
+
+                                val output = parseOutput(fullContent)
+                                if (!continuation.isActive) return
+                                if (output.corrected_text.isBlank()) {
+                                    continuation.resume(Result.failure(Exception("Empty correction from DeepSeek")))
+                                } else {
+                                    continuation.resume(Result.success(output.corrected_text))
+                                }
+                            }
+                        } catch (e: Exception) {
+                            if (continuation.isActive) {
+                                continuation.resumeWithException(e)
+                            }
+                        }
+                    }
+
+                    private fun parseStreamResponse(body: String): String? {
+                        val accumulated = StringBuilder()
+                        var hasData = false
+
+                        body.lines().forEach { line ->
+                            if (!line.startsWith("data: ")) return@forEach
+                            val data = line.removePrefix("data: ")
+                            if (data == "[DONE]") return@forEach
+
+                            try {
+                                val chunk = json.decodeFromString(DeepSeekStreamChunk.serializer(), data)
+                                val delta = chunk.choices?.firstOrNull()?.delta?.content
+                                if (delta != null) {
+                                    accumulated.append(delta)
+                                    hasData = true
+                                }
+                            } catch (_: Exception) {}
+                        }
+
+                        return if (hasData) accumulated.toString().trim() else null
+                    }
+
+                    private fun parseJsonResponse(body: String): String? {
+                        return try {
+                            val resp = json.decodeFromString(DeepSeekResponse.serializer(), body)
+                            resp.choices.firstOrNull()?.message?.content
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                })
             }
-
-            val deepSeekResponse = json.decodeFromString(DeepSeekResponse.serializer(), responseBody)
-            val content = deepSeekResponse.choices.firstOrNull()?.message?.content
-                ?: return@withContext Result.failure(Exception("Empty response from DeepSeek"))
-
-            val output = try {
-                json.decodeFromString(AIJsonOutput.serializer(), content)
-            } catch (_: Exception) {
-                try {
-                    val corrected = content.trim()
-                        .removeSurrounding("{", "}")
-                        .substringAfter("\"corrected_text\":")
-                        .trim()
-                        .removeSurrounding("\"")
-                        .replace("\\n", "\n")
-                    AIJsonOutput(corrected_text = corrected)
-                } catch (_: Exception) {
-                    AIJsonOutput(corrected_text = content.trim())
-                }
-            }
-
-            if (output.corrected_text.isBlank()) {
-                return@withContext Result.failure(Exception("Empty correction from DeepSeek"))
-            }
-
-            Result.success(output.corrected_text)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun parseOutput(content: String): AIJsonOutput {
+        return try {
+            json.decodeFromString(AIJsonOutput.serializer(), content)
+        } catch (_: Exception) {
+            try {
+                val corrected = content
+                    .removeSurrounding("{", "}")
+                    .substringAfter("\"corrected_text\":")
+                    .trim()
+                    .removeSurrounding("\"")
+                    .replace("\\n", "\n")
+                AIJsonOutput(corrected_text = corrected)
+            } catch (_: Exception) {
+                AIJsonOutput(corrected_text = content)
+            }
         }
     }
 }

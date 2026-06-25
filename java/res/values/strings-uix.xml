@@ -122,6 +122,10 @@
 
     <!-- For Font Typer action -->
     <string name="action_fonttyper_title">WordStyles</string>
+
+    <!-- For AI correction action -->
+    <string name="ai_correction_action_name">AI Correction</string>
+
     <!-- This message is shown when we're typing in a text field does not support image insertion ("app" refers to the external app that is providing the text field) -->
     <string name="action_fonttyper_app_unsupported_warning">App may not support image insertion, this feature may not work.</string>
     <string name="action_fonttyper_select_a_preset">Select preset</string>

@@ -401,5 +401,5 @@ val AI_CORRECTION_API_KEY = SettingsKey(
 
 val AI_CORRECTION_DEBOUNCE_MS = SettingsKey(
     key = stringPreferencesKey("aiCorrectionDebounceMs"),
-    default = "800"
+    default = "1500"
 )

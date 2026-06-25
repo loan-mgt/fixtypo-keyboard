@@ -6,7 +6,13 @@ import android.os.Build
 import android.util.Log
 import android.view.View
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -121,6 +127,7 @@ import org.futo.inputmethod.latin.SuggestedWords.SuggestedWordInfo.KIND_TYPED
 import org.futo.inputmethod.latin.SuggestionBlacklist
 import org.futo.inputmethod.latin.common.Constants
 import org.futo.inputmethod.latin.suggestions.SuggestionStripViewListener
+import org.futo.inputmethod.latin.uix.actions.AICorrectionAction
 import org.futo.inputmethod.latin.uix.actions.FavoriteActions
 import org.futo.inputmethod.latin.uix.actions.MoreActionsAction
 import org.futo.inputmethod.latin.uix.actions.PinnedActions
@@ -605,7 +612,12 @@ fun ActionItemSmall(action: Action, onSelect: (Action) -> Unit, onLongSelect: (A
 
 
 @Composable
-fun ActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action) -> Unit) {
+fun ActionItems(
+    onSelect: (Action) -> Unit,
+    onLongSelect: (Action) -> Unit,
+    aiCorrectionState: AICorrectionState? = null,
+    onAICorrectionApply: () -> Unit = {},
+) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     val actions = if(!LocalInspectionMode.current) {
@@ -646,7 +658,9 @@ fun ActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action) -> Unit) {
         lazyListState.layoutInfo.visibleItemsInfo.isNotEmpty()
                 && actionItems.isNotEmpty()
                 && (lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.key != actionItems.lastOrNull()?.name)
-    } }
+    }
+}
+
 
     Box(Modifier.safeKeyboardPadding()) {
         LazyRow(state = lazyListState) {
@@ -657,7 +671,14 @@ fun ActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action) -> Unit) {
 
             }
             items(actionItems.size, key = { actionItems[it].name }) {
-                ActionItem(it, actionItems[it], onSelect, onLongSelect)
+                if (actionItems[it] == AICorrectionAction) {
+                    AICorrectionChip(
+                        state = aiCorrectionState,
+                        onApply = onAICorrectionApply
+                    )
+                } else {
+                    ActionItem(it, actionItems[it], onSelect, onLongSelect)
+                }
             }
         }
 
@@ -783,7 +804,12 @@ fun ImportantNoticeView(
 }
 
 @Composable
-fun RowScope.PinnedActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action) -> Unit) {
+fun RowScope.PinnedActionItems(
+    onSelect: (Action) -> Unit,
+    onLongSelect: (Action) -> Unit,
+    aiCorrectionState: AICorrectionState? = null,
+    onAICorrectionApply: () -> Unit = {},
+) {
     val actions = if(!LocalInspectionMode.current) {
         useDataStoreValue(PinnedActions)
     } else {
@@ -795,77 +821,97 @@ fun RowScope.PinnedActionItems(onSelect: (Action) -> Unit, onLongSelect: (Action
     }
 
     actionItems.forEach {
-        ActionItemSmall(it, onSelect, onLongSelect)
+        if (it == AICorrectionAction) {
+            AICorrectionChip(
+                state = aiCorrectionState,
+                onApply = onAICorrectionApply
+            )
+        } else {
+            ActionItemSmall(it, onSelect, onLongSelect)
+        }
     }
 }
 
 
-@OptIn(ExperimentalFoundationApi::class)
+private @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AICorrectionChip(
     state: AICorrectionState?,
     onApply: () -> Unit
 ) {
-    if (state == null || state == AICorrectionState.Disabled || state == AICorrectionState.Idle) return
+    if (state == null || state is AICorrectionState.Disabled) return
 
-    val context = LocalContext.current
     val bgCol = LocalKeyboardScheme.current.keyboardContainer
     val fgCol = LocalKeyboardScheme.current.onKeyboardContainer
-    val accentCol = LocalKeyboardScheme.current.primary
 
-    val (text, onClick) = when (state) {
-        is AICorrectionState.Loading -> Pair(
-            stringResource(R.string.ai_correction_chip_loading), null
-        )
-        is AICorrectionState.Ready -> Pair(
-            stringResource(R.string.ai_correction_chip_ready), onApply
-        )
-        is AICorrectionState.Error -> Pair(
-            stringResource(R.string.ai_correction_chip_error), null
-        )
+    val circleRadius = with(LocalDensity.current) { 16.dp.toPx() }
+
+    val isReady = state is AICorrectionState.Ready
+
+    val infiniteTransition = if (isReady) rememberInfiniteTransition() else null
+    val hue by infiniteTransition?.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart)
+    ) ?: remember { mutableFloatStateOf(0f) }
+
+    val readyTint = remember(hue) { hsvToColor(hue, 0.28f, 1f) }
+
+    val (tint, onClick) = when (state) {
+        is AICorrectionState.Idle -> Pair(fgCol, null)
+        is AICorrectionState.Loading -> Pair(fgCol.copy(alpha = 0.35f), null)
+        is AICorrectionState.Ready -> Pair(readyTint, onApply)
+        is AICorrectionState.Error -> Pair(Color.Red, null)
         else -> return
     }
 
     Box(
         modifier = Modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (state is AICorrectionState.Ready) accentCol.copy(alpha = 0.2f) else bgCol)
+            .width(42.dp)
+            .fillMaxHeight()
+            .drawBehind {
+                drawCircle(color = bgCol, radius = circleRadius, style = Fill)
+            }
+            .clip(CircleShape)
             .then(
                 if (onClick != null) Modifier.combinedClickable(onClick = onClick) else Modifier
-            )
-            .padding(horizontal = 10.dp),
+            ),
         contentAlignment = Center
     ) {
-        Row(verticalAlignment = CenterVertically) {
-            if (state is AICorrectionState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    strokeWidth = 2.dp,
-                    color = fgCol
-                )
-                Spacer(Modifier.width(6.dp))
-            } else if (state is AICorrectionState.Ready) {
-                Icon(
-                    painter = painterResource(id = R.drawable.icon_spellcheck),
-                    contentDescription = null,
-                    tint = accentCol,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                text = text,
-                style = suggestionStylePrimary.copy(
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp
-                ).withCustomFont(),
-                color = if (state is AICorrectionState.Ready) accentCol else fgCol
+        if (state is AICorrectionState.Loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = fgCol
+            )
+        } else {
+            Icon(
+                painter = painterResource(id = R.drawable.icon_stars),
+                contentDescription = stringResource(R.string.ai_correction_action_name),
+                tint = tint,
+                modifier = Modifier.size(16.dp)
             )
         }
     }
+}
 
-    Spacer(Modifier.width(4.dp))
+
+private fun hsvToColor(hue: Float, saturation: Float, value: Float): Color {
+    val c = value * saturation
+    val x = c * (1 - kotlin.math.abs((hue / 60) % 2 - 1))
+    val m = value - c
+    val (r, g, b) = when {
+        hue < 60  -> Triple(c, x, 0f)
+        hue < 120 -> Triple(x, c, 0f)
+        hue < 180 -> Triple(0f, c, x)
+        hue < 240 -> Triple(0f, x, c)
+        hue < 300 -> Triple(x, 0f, c)
+        else      -> Triple(c, 0f, x)
+    }
+    return Color(
+        ((r + m) * 255).toInt(),
+        ((g + m) * 255).toInt(),
+        ((b + m) * 255).toInt(),
+    )
 }
 
 
@@ -930,7 +976,7 @@ fun ActionBar(
                     .weight(1.0f),
                 color = LocalKeyboardScheme.current.keyboardSurfaceDim//actionBarColor()
             ) {
-                ActionItems(onActionActivated, onActionAltActivated)
+                ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
             }
         }
 
@@ -956,7 +1002,7 @@ fun ActionBar(
                     Box(modifier = Modifier
                         .weight(1.0f)
                         .fillMaxHeight()) {
-                        ActionItems(onActionActivated, onActionAltActivated)
+                        ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
                     }
                 } else {
                     if (importantNotice != null) {
@@ -997,11 +1043,7 @@ fun ActionBar(
                         }
 
                         if(inlineSuggestions.isEmpty()) {
-                            AICorrectionChip(
-                                state = aiCorrectionState,
-                                onApply = onAICorrectionApply
-                            )
-                            PinnedActionItems(onActionActivated, onActionAltActivated)
+                            PinnedActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
                         }
                     }
                 }

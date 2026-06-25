@@ -102,6 +102,7 @@ import androidx.window.layout.WindowInfoTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.futo.inputmethod.latin.uix.ai.AICorrectionBridge
 import org.futo.inputmethod.latin.uix.ai.AICorrectionEngine
 import org.futo.inputmethod.latin.uix.ai.AICorrectionState
 import org.futo.inputmethod.accessibility.AccessibilityUtils
@@ -1548,10 +1549,12 @@ class UixManager(private val latinIME: LatinIME) {
     }
 
     fun onAICorrectionInput() {
+        Log.d("UixManager", "onAICorrectionInput called, engine=${aiCorrectionEngine != null}")
         aiCorrectionEngine?.onInputChanged()
     }
 
     fun onAICorrectionApply() {
+        Log.d("UixManager", "onAICorrectionApply called")
         val state = aiCorrectionState.value ?: return
         if (state !is AICorrectionState.Ready) return
 
@@ -1581,6 +1584,7 @@ class UixManager(private val latinIME: LatinIME) {
     }
 
     private fun createAICorrectionEngine() {
+        Log.d("UixManager", "createAICorrectionEngine called")
         aiCorrectionEngine?.onDestroy()
         aiCorrectionEngine = AICorrectionEngine(
             scope = latinIME.lifecycleScope,
@@ -1603,6 +1607,7 @@ class UixManager(private val latinIME: LatinIME) {
 
         latinIME.lifecycleScope.launch {
             aiCorrectionEngine?.state?.collect { newState ->
+                Log.d("UixManager", "AI state changed: $newState")
                 aiCorrectionState.value = newState
             }
         }
@@ -1610,6 +1615,7 @@ class UixManager(private val latinIME: LatinIME) {
 
     fun onCreate() {
         createAICorrectionEngine()
+        AICorrectionBridge.onApply = { onAICorrectionApply() }
         initKeyboardLoadActions()
 
         isActionsExpanded.value = latinIME.getSettingBlocking(ActionBarExpanded)
@@ -1748,6 +1754,7 @@ class UixManager(private val latinIME: LatinIME) {
     }
 
     fun onDestroy() {
+        AICorrectionBridge.onApply = null
         aiCorrectionEngine?.onDestroy()
         aiCorrectionEngine = null
         closeActionWindow()
