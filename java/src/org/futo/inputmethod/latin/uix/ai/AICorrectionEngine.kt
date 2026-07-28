@@ -117,6 +117,78 @@ class AICorrectionEngine(
         }
     }
 
+    fun requestCorrection() {
+        if (!isEnabled()) {
+            Log.d(TAG, "AI correction disabled, setting state to Disabled")
+            _state.value = AICorrectionState.Disabled
+            return
+        }
+
+        val apiKey = getApiKey()
+        if (apiKey.isBlank()) {
+            Log.d(TAG, "API key blank, setting state to Idle")
+            _state.value = AICorrectionState.Idle
+            return
+        }
+
+        if (client == null || client?.apiKey != apiKey) {
+            client = DeepSeekClient(apiKey)
+        }
+
+        queryJob?.cancel()
+        queryJob = scope.launch {
+            val currentSeq = ++sequenceId
+
+            Log.d(TAG, "Manual request started, seq=$currentSeq")
+
+            val (textBefore, textAfter) = getTextContext()
+            val fullContext = buildString {
+                append(textBefore)
+                append(textAfter)
+            }.trim()
+
+            if (fullContext.isBlank() || fullContext.length < 4) {
+                Log.d(TAG, "Text too short (${fullContext.length} chars), staying Idle")
+                _state.value = AICorrectionState.Idle
+                return@launch
+            }
+
+            if (fullContext == lastQueryText && _state.value is AICorrectionState.Ready) {
+                Log.d(TAG, "Text unchanged from last query, skipping")
+                return@launch
+            }
+
+            lastQueryText = fullContext
+            Log.d(TAG, "Setting state=Loading, calling DeepSeek API for: \"${fullContext.take(50)}...\"")
+            _state.value = AICorrectionState.Loading
+
+            val currentClient = client ?: return@launch
+
+            val result = currentClient.correctText(fullContext)
+            if (currentSeq != sequenceId) {
+                Log.d(TAG, "Query seq=$currentSeq result discarded, newer query in progress")
+                return@launch
+            }
+
+            result.fold(
+                onSuccess = { corrected ->
+                    Log.d(TAG, "DeepSeek returned: \"${corrected.take(50)}...\"")
+                    if (corrected == fullContext) {
+                        Log.d(TAG, "No corrections needed, staying Idle")
+                        _state.value = AICorrectionState.Idle
+                    } else {
+                        Log.d(TAG, "Correction different, setting state=Ready")
+                        _state.value = AICorrectionState.Ready(fullContext, corrected)
+                    }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "AI correction failed: ${error.message}")
+                    _state.value = AICorrectionState.Error(error.message ?: "Unknown error")
+                }
+            )
+        }
+    }
+
     fun cancelQuery() {
         queryJob?.cancel()
         queryJob = null

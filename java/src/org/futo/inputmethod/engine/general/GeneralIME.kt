@@ -44,9 +44,11 @@ import org.futo.inputmethod.latin.common.InputPointers
 import org.futo.inputmethod.latin.inputlogic.InputLogic
 import org.futo.inputmethod.latin.settings.Settings
 import org.futo.inputmethod.latin.suggestions.SuggestionStripViewAccessor
+import org.futo.inputmethod.latin.uix.AI_CORRECTION_AUTO_CHECK
 import org.futo.inputmethod.latin.uix.SettingsKey
 import org.futo.inputmethod.latin.uix.actions.throwIfDebug
 import org.futo.inputmethod.latin.uix.getSetting
+import org.futo.inputmethod.latin.uix.getSettingBlocking
 import org.futo.inputmethod.latin.uix.isDirectBootUnlocked
 import org.futo.inputmethod.latin.utils.AsyncResultHolder
 import org.futo.inputmethod.latin.xlm.LanguageModelFacilitator
@@ -395,7 +397,8 @@ class GeneralIME(val helper: IMEHelper) : IMEInterface, WordLearner, SuggestionS
             updateSuggestions(inputStyle)
         }
 
-        if (inputTransaction?.didAffectContents() == true && !ignoreSuggestionUpdate) {
+        if (inputTransaction?.didAffectContents() == true && !ignoreSuggestionUpdate
+            && helper.context.getSettingBlocking(AI_CORRECTION_AUTO_CHECK)) {
             helper.notifyAICorrectionInput()
         }
     }

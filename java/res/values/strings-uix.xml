@@ -621,6 +621,8 @@
     <string name="ai_correction_chip_error">AI error</string>
     <string name="ai_correction_no_result">No AI correction available yet</string>
     <string name="ai_correction_applied">AI correction applied</string>
+    <string name="ai_correction_auto_check">Auto-check after typing stops</string>
+    <string name="ai_correction_auto_check_subtitle">Automatically request corrections after you pause typing. Disable to only check when you tap the AI button.</string>
 
 
     <!-- Help & feedback menu -->

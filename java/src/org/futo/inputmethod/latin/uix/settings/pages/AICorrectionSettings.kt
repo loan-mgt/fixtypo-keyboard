@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.futo.inputmethod.latin.R
 import org.futo.inputmethod.latin.uix.AI_CORRECTION_API_KEY
+import org.futo.inputmethod.latin.uix.AI_CORRECTION_AUTO_CHECK
 import org.futo.inputmethod.latin.uix.AI_CORRECTION_ENABLED
 import org.futo.inputmethod.latin.uix.settings.UserSettingsMenu
 import org.futo.inputmethod.latin.uix.settings.useDataStore
@@ -29,6 +30,11 @@ val AICorrectionSettingsMenu = UserSettingsMenu(
             title = R.string.ai_correction_enable,
             subtitle = R.string.ai_correction_enable_subtitle,
             setting = AI_CORRECTION_ENABLED
+        ),
+        userSettingToggleDataStore(
+            title = R.string.ai_correction_auto_check,
+            subtitle = R.string.ai_correction_auto_check_subtitle,
+            setting = AI_CORRECTION_AUTO_CHECK
         ),
         userSettingDecorationOnly {
             AICorrectionSettingsContent()

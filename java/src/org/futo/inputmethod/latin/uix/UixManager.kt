@@ -745,7 +745,8 @@ class UixManager(private val latinIME: LatinIME) {
                     needToUseExpandableSuggestionUi = needToUseExpandableSuggestionUi,
                     loading = latinIME.imeManager.isImeLoading(),
                     aiCorrectionState = aiCorrectionState.value,
-                    onAICorrectionApply = { onAICorrectionApply() }
+                    onAICorrectionApply = { onAICorrectionApply() },
+                    onAICorrectionRequest = { onAICorrectionRequest() }
                 )
             }
         }
@@ -1553,6 +1554,11 @@ class UixManager(private val latinIME: LatinIME) {
         aiCorrectionEngine?.onInputChanged()
     }
 
+    fun onAICorrectionRequest() {
+        Log.d("UixManager", "onAICorrectionRequest called")
+        aiCorrectionEngine?.requestCorrection()
+    }
+
     fun onAICorrectionApply() {
         Log.d("UixManager", "onAICorrectionApply called")
         val state = aiCorrectionState.value ?: return
@@ -1616,6 +1622,7 @@ class UixManager(private val latinIME: LatinIME) {
     fun onCreate() {
         createAICorrectionEngine()
         AICorrectionBridge.onApply = { onAICorrectionApply() }
+        AICorrectionBridge.onRequest = { onAICorrectionRequest() }
         initKeyboardLoadActions()
 
         isActionsExpanded.value = latinIME.getSettingBlocking(ActionBarExpanded)

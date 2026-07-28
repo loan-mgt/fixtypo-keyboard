@@ -617,6 +617,7 @@ fun ActionItems(
     onLongSelect: (Action) -> Unit,
     aiCorrectionState: AICorrectionState? = null,
     onAICorrectionApply: () -> Unit = {},
+    onAICorrectionRequest: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
@@ -674,7 +675,8 @@ fun ActionItems(
                 if (actionItems[it] == AICorrectionAction) {
                     AICorrectionChip(
                         state = aiCorrectionState,
-                        onApply = onAICorrectionApply
+                        onApply = onAICorrectionApply,
+                        onRequest = onAICorrectionRequest
                     )
                 } else {
                     ActionItem(it, actionItems[it], onSelect, onLongSelect)
@@ -809,6 +811,7 @@ fun RowScope.PinnedActionItems(
     onLongSelect: (Action) -> Unit,
     aiCorrectionState: AICorrectionState? = null,
     onAICorrectionApply: () -> Unit = {},
+    onAICorrectionRequest: () -> Unit = {},
 ) {
     val actions = if(!LocalInspectionMode.current) {
         useDataStoreValue(PinnedActions)
@@ -824,7 +827,8 @@ fun RowScope.PinnedActionItems(
         if (it == AICorrectionAction) {
             AICorrectionChip(
                 state = aiCorrectionState,
-                onApply = onAICorrectionApply
+                onApply = onAICorrectionApply,
+                onRequest = onAICorrectionRequest
             )
         } else {
             ActionItemSmall(it, onSelect, onLongSelect)
@@ -837,7 +841,8 @@ private @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AICorrectionChip(
     state: AICorrectionState?,
-    onApply: () -> Unit
+    onApply: () -> Unit,
+    onRequest: () -> Unit
 ) {
     if (state == null || state is AICorrectionState.Disabled) return
 
@@ -857,10 +862,10 @@ fun AICorrectionChip(
     val readyTint = remember(hue) { hsvToColor(hue, 0.28f, 1f) }
 
     val (tint, onClick) = when (state) {
-        is AICorrectionState.Idle -> Pair(fgCol, null)
+        is AICorrectionState.Idle -> Pair(fgCol, onRequest)
         is AICorrectionState.Loading -> Pair(fgCol.copy(alpha = 0.35f), null)
         is AICorrectionState.Ready -> Pair(readyTint, onApply)
-        is AICorrectionState.Error -> Pair(Color.Red, null)
+        is AICorrectionState.Error -> Pair(Color.Red, onRequest)
         else -> return
     }
 
@@ -945,6 +950,7 @@ fun ActionBar(
     loading: Boolean = false,
     aiCorrectionState: AICorrectionState? = null,
     onAICorrectionApply: () -> Unit = {},
+    onAICorrectionRequest: () -> Unit = {},
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -976,7 +982,7 @@ fun ActionBar(
                     .weight(1.0f),
                 color = LocalKeyboardScheme.current.keyboardSurfaceDim//actionBarColor()
             ) {
-                ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
+                ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply, onAICorrectionRequest)
             }
         }
 
@@ -1002,7 +1008,7 @@ fun ActionBar(
                     Box(modifier = Modifier
                         .weight(1.0f)
                         .fillMaxHeight()) {
-                        ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
+                        ActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply, onAICorrectionRequest)
                     }
                 } else {
                     if (importantNotice != null) {
@@ -1043,7 +1049,7 @@ fun ActionBar(
                         }
 
                         if(inlineSuggestions.isEmpty()) {
-                            PinnedActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply)
+                            PinnedActionItems(onActionActivated, onActionAltActivated, aiCorrectionState, onAICorrectionApply, onAICorrectionRequest)
                         }
                     }
                 }

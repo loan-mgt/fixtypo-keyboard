@@ -399,6 +399,11 @@ val AI_CORRECTION_API_KEY = SettingsKey(
     default = ""
 )
 
+val AI_CORRECTION_AUTO_CHECK = SettingsKey(
+    key = booleanPreferencesKey("aiCorrectionAutoCheck"),
+    default = true
+)
+
 val AI_CORRECTION_DEBOUNCE_MS = SettingsKey(
     key = stringPreferencesKey("aiCorrectionDebounceMs"),
     default = "1500"

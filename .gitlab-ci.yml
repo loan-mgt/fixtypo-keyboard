@@ -77,11 +77,61 @@ buildUnstable:
       - ./*.txt
   when: manual
 
+releaseStable:
+  stage: build
+  tags:
+    - docker
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
+  needs: []
+  before_script:
+    - git fetch origin master:master
+    - export VERSION_NAME="$CI_COMMIT_TAG"
+    - export VERSION_CODE=`git rev-list --first-parent --count master`
+    - echo $VERSION_CODE $VERSION_NAME
+    - ./setUpPropertiesCI.sh
+  script:
+    - gradle updateBundleResources -s
+    - gradle bundlePlaystoreRelease -s
+    - gradle assembleStableRelease -s
+    - if grep -q "android.permission.INTERNET" build/intermediates/bundle_manifest/playstoreRelease/processApplicationManifestPlaystoreReleaseForBundle/AndroidManifest.xml; then echo "Internet permission check failed for play store"; exit 1; fi
+    - if grep -q "android.permission.INTERNET" build/intermediates/packaged_manifests/stableRelease/processStableReleaseManifestForPackage/AndroidManifest.xml; then echo "Internet permission check failed for stable"; exit 1; fi
+    - echo "All checks OK"
+    - echo "Standalone permissions" && grep "uses-permission" build/intermediates/packaged_manifests/stableRelease/processStableReleaseManifestForPackage/AndroidManifest.xml
+    - echo "Play Store permissions" && grep "uses-permission" build/intermediates/bundle_manifest/playstoreRelease/processApplicationManifestPlaystoreReleaseForBundle/AndroidManifest.xml
+    - mv build/outputs/apk/stable/release/latinime-stable-release.apk ./keyboard-$VERSION_NAME.apk
+    - mv build/outputs/bundle/playstoreRelease/latinime-playstore-release.aab ./keyboard-playstore-$VERSION_NAME.aab
+    - touch VERSION_CODE_$VERSION_CODE.txt
+    - touch VERSION_NAME_$VERSION_NAME.txt
+    - echo "Keyboard $VERSION_NAME - $CI_JOB_URL/artifacts/raw/keyboard-$VERSION_NAME.apk"
+    - echo $VERSION_CODE $VERSION_NAME
+  artifacts:
+    name: "keyboard-release-$VERSION_NAME"
+    paths:
+      - ./*.apk
+      - ./*.aab
+      - ./*.txt
+    expire_in: never
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Keyboard $CI_COMMIT_TAG"
+    description: "Release $CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "APK"
+          url: "$CI_JOB_URL/artifacts/raw/keyboard-$CI_COMMIT_TAG.apk"
+        - name: "AAB"
+          url: "$CI_JOB_URL/artifacts/raw/keyboard-playstore-$CI_COMMIT_TAG.aab"
+
 buildStable:
   tags:
     - docker
   stage: build
   needs: []
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - when: manual
   before_script:
     - git fetch origin master:master
     - export VERSION_NAME=`git describe --tags`
@@ -109,4 +159,3 @@ buildStable:
       - ./*.apk
       - ./*.aab
       - ./*.txt
-  when: manual
