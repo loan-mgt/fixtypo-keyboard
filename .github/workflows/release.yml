@@ -21,7 +21,20 @@ jobs:
 
       - name: Setup keystore
         run: |
-          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > key.jks
+          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > key.pkcs12
+          if keytool -importkeystore \
+            -srckeystore key.pkcs12 -srcstoretype pkcs12 \
+            -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -srcalias "${{ secrets.KEYSTORE_ALIAS }}" \
+            -destkeystore key.jks -deststoretype jks \
+            -deststorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -destalias "${{ secrets.KEYSTORE_ALIAS }}" \
+            -srckeypass "${{ secrets.KEY_PASSWORD }}" \
+            -destkeypass "${{ secrets.KEY_PASSWORD }}" 2>/dev/null; then
+            rm -f key.pkcs12
+          else
+            mv key.pkcs12 key.jks
+          fi
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > keystore.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
           echo "keyAlias=${{ secrets.KEYSTORE_ALIAS }}" >> keystore.properties
