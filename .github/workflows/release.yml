@@ -24,16 +24,16 @@ jobs:
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > keystore.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
           echo "keyAlias=${{ secrets.KEYSTORE_ALIAS }}" >> keystore.properties
-        env:
-          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+          echo "storeFile=key.jks" >> keystore.properties
+
+      - name: Get version code
+        run: echo "VERSION_CODE=$(git rev-list --first-parent --count HEAD)" >> $GITHUB_ENV
 
       - name: Build release APK
         run: ./gradlew assembleStableRelease -s
         env:
           VERSION_NAME: ${{ github.ref_name }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
 
       - name: Rename APK
         run: |
