@@ -20,24 +20,38 @@ jobs:
           java-version: 17
 
       - name: Setup keystore
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
         run: |
-          echo "${{ secrets.KEYSTORE_FILE }}" | base64 --decode > key.pkcs12
-          if keytool -importkeystore \
-            -srckeystore key.pkcs12 -srcstoretype pkcs12 \
-            -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -srcalias "${{ secrets.KEYSTORE_ALIAS }}" \
-            -destkeystore key.jks -deststoretype jks \
-            -deststorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -destalias "${{ secrets.KEYSTORE_ALIAS }}" \
-            -srckeypass "${{ secrets.KEY_PASSWORD }}" \
-            -destkeypass "${{ secrets.KEY_PASSWORD }}" 2>/dev/null; then
-            rm -f key.pkcs12
-          else
-            mv key.pkcs12 key.jks
+          echo "$KEYSTORE_FILE" | base64 --decode > keystore.raw
+          STORE_TYPE=""
+          if keytool -list -keystore keystore.raw -storepass "$KEYSTORE_PASSWORD" -storetype jks >/dev/null 2>&1; then
+            STORE_TYPE="jks"
+          elif keytool -list -keystore keystore.raw -storepass "$KEYSTORE_PASSWORD" -storetype pkcs12 >/dev/null 2>&1; then
+            STORE_TYPE="pkcs12"
           fi
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > keystore.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
-          echo "keyAlias=${{ secrets.KEYSTORE_ALIAS }}" >> keystore.properties
+          if [ -z "$STORE_TYPE" ]; then
+            echo "ERROR: Cannot read keystore - check KEYSTORE_FILE, KEYSTORE_PASSWORD, and KEYSTORE_ALIAS"
+            exit 1
+          fi
+          echo "Detected keystore type: $STORE_TYPE"
+          if [ "$STORE_TYPE" = "pkcs12" ]; then
+            keytool -importkeystore \
+              -srckeystore keystore.raw -srcstoretype pkcs12 \
+              -srcstorepass "$KEYSTORE_PASSWORD" -srcalias "$KEYSTORE_ALIAS" \
+              -destkeystore key.jks -deststoretype jks \
+              -deststorepass "$KEYSTORE_PASSWORD" -destalias "$KEYSTORE_ALIAS" \
+              -srckeypass "$KEY_PASSWORD" -destkeypass "$KEY_PASSWORD"
+            rm -f keystore.raw
+          else
+            mv keystore.raw key.jks
+          fi
+          echo "storePassword=$KEYSTORE_PASSWORD" > keystore.properties
+          echo "keyPassword=$KEY_PASSWORD" >> keystore.properties
+          echo "keyAlias=$KEYSTORE_ALIAS" >> keystore.properties
           echo "storeFile=key.jks" >> keystore.properties
 
       - name: Get version code
