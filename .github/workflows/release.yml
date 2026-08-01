@@ -1,9 +1,11 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -60,18 +62,17 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleStableRelease -s
         env:
-          VERSION_NAME: ${{ github.ref_name }}
+          VERSION_NAME: ${{ github.event.release.tag_name }}
           VERSION_CODE: ${{ env.VERSION_CODE }}
 
       - name: Rename APK
         run: |
           mv build/outputs/apk/stable/release/*-stable-release.apk \
-             ./keyboard-${{ github.ref_name }}.apk
+             ./keyboard-${{ github.event.release.tag_name }}.apk
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Keyboard ${{ github.ref_name }}
-          files: ./keyboard-${{ github.ref_name }}.apk
-          draft: true
-          generate_release_notes: true
+      - name: Upload APK to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+             ./keyboard-${{ github.event.release.tag_name }}.apk --clobber
