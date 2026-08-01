@@ -65,7 +65,7 @@ jobs:
 
       - name: Rename APK
         run: |
-          mv build/outputs/apk/stable/release/latinime-stable-release.apk \
+          mv build/outputs/apk/stable/release/*-stable-release.apk \
              ./keyboard-${{ github.ref_name }}.apk
 
       - name: Create Release

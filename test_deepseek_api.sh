@@ -2,7 +2,7 @@
 # Test DeepSeek API key and text correction before building
 # Usage: ./test_deepseek_api.sh [api_key]
 
-API_KEY="${1:-sk-9a72314e8492419580cee9c549fd5b3d}"
+API_KEY="${1}"
 
 echo "=== Testing DeepSeek API key ==="
 
